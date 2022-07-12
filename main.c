@@ -1,113 +1,80 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <string.h>
-#include <stdlib.h>
-#include <time.h>
-#include "board.h"
-#include "instructionPointer.h"
+#define MAX 30000
 
-/**
- * @return brainfuck code as a string and some interpretation parameters
- */
-int main(int argc, char * argv[]) {
-    char * text = NULL;
-    FILE * output = NULL;
-
-    time_t t = time(NULL);
-    struct tm * tm = localtime(&t);
-    char date[64];
-    strftime(date, sizeof(date), "%c", tm);
-
-    for (int i = 1; i < argc ; i++) {
-        if (strcmp(argv[i], "-t") == 0) {
-            text = argv[i + 1];
-            i++;
-        } else if (strcmp(argv[i], "-o") == 0) {
-            output = fopen(argv[i + 1], "a");
-            i++;
-        } else if (strcmp(argv[i], "-h") == 0) {
-            printf("Usage : ./brainfuck -[to] file.b\n\nArguments:\n\t-t (text): provides code as text directly to the interpreter\n\t-o (output): provides an output file to store the interpreter states");
-            return 0;
-        }
+int main(int argc, char* argv[]) {
+    if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+        printf("Usage : ./brainfuck -[h] code.b");
+        return 0;
     }
 
-    if (text == NULL) { // a file
-        FILE * file = fopen(argv[argc - 1], "r");
-
-        fseek(file, 0, SEEK_END);
-        long size = ftell(file);
-        fseek(file, 0, SEEK_SET);
-
-        text = malloc(size * sizeof(char));
-
-        for (int i = 0; i < size - 1; i++) {
-            text[i] = fgetc(file);
-        }
+    FILE *code = fopen(argv[argc - 1], "r");
+    if (code == NULL) {
+        printf("\nERROR: can't open brainfuck file");
+        return 1;
     }
 
-    initBoard();
-    initInstructionPointer(text);
-    if (output != NULL) {
-        fprintf(output, "### %s ###\n", date);
-    }
-    while (currentInstruction != NULL) {
-        Instruction * instruction = currentInstruction;
-        switch (instruction->opcode) {
-            case ADD:
-                increment();
-                jump();
+    unsigned char board[MAX] = {0};
+    unsigned int stack[5] = {0};
+
+    unsigned char *ptr = board;
+    unsigned int *head = stack;
+
+    char instruction = (char) fgetc(code);
+
+    while (instruction != EOF) {
+        switch (instruction) {
+            case '+':
+                (*ptr)++;
                 break;
-            case SUB:
-                decrement();
-                jump();
+            case '-':
+                (*ptr)--;
                 break;
-            case PUT:;
-                char val;
-                scanf("%c", &val);
-                putChar(val);
-                jump();
+            case '>':
+                if (ptr != &board[MAX]) {
+                    ptr++;
+                    break;
+                }
+                return 2;
+            case '<':
+                if (ptr != &board[0]) {
+                    ptr--;
+                    break;
+                }
+                return 2;
+            case '.':
+                printf("%c", *ptr);
                 break;
-            case GET:
-                printf("%c", getCell().value);
-                jump();
+            case ',':;
+                char value;
+                scanf("%c", &value);
+                *ptr = value;
                 break;
-            case PTR_ADD:
-                nextCell();
-                jump();
-                break;
-            case PTR_SUB:
-                prevCell();
-                jump();
-                break;
-            case BEGIN_LOOP:
-                if (getCell().value == 0) {
-                    if (peek() == instruction) {
-                        pop();
-                    }
-                    jumpToEOL();
+            case '[':
+                if (*ptr) {
+                    if (*head) head++;
+                    *head = (int) ftell(code);
                 } else {
-                    if (peek() != instruction) { // push only if it's not mentioned
-                        push();
+                    int loops = 0;
+                    while (instruction != ']' || loops) {
+                        if (instruction == '[') loops++;
+                        if (instruction == ']') loops--;
+                        instruction = (char) fgetc(code);
                     }
                 }
-                jump();
                 break;
-            case END_LOOP:
-                branch(peek());
+            case ']':
+                if (*ptr) {
+                    fseek(code, *head, SEEK_SET);
+                } else {
+                    head--;
+                }
                 break;
             default:
-                printf("\nunknown instruction: %c\n", instruction->opcode);
+                printf("\nERROR: Unknown Instruction: %c | %d", instruction, (int) instruction);
+                return 1;
         }
-        if (output != NULL) {
-            show(output);
-        }
+        instruction = (char) fgetc(code);
     }
-    if (output != NULL) {
-        fprintf(output, "### ###\n");
-    }
-
-    cleanBoard();
-    cleanInstructionPointer();
     return 0;
 }
-
