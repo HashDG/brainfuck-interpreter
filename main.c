@@ -71,6 +71,7 @@ int main(int argc, char* argv[]) {
                 }
                 break;
             default:
+                if (instruction == '\n') break;
                 printf("\nERROR: Unknown Instruction: %c | %d", instruction, (int) instruction);
                 return 1;
         }
